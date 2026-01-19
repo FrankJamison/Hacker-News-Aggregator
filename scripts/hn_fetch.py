@@ -14,8 +14,33 @@ import sys
 import time
 from typing import Any, Optional
 
-import requests
-from bs4 import BeautifulSoup
+
+def _missing_dependency_message(module: str) -> str:
+    return (
+        "Backend dependency missing: "
+        + module
+        + "\n"
+        + "Install Python deps for this project (using the SAME python that runs the script):\n"
+        + "  python3 -m pip install -r requirements.txt\n"
+        + "If you are on shared hosting and need a user install, try:\n"
+        + "  python3 -m pip install --user -r requirements.txt\n"
+        + "If PHP runs a different Python than your SSH shell, set HN_PYTHON (in Apache/PHP env) to the full path of the Python you want,\n"
+        + "then install deps using that exact interpreter (example):\n"
+        + "  /usr/bin/python3 -m pip install --user -r requirements.txt\n"
+    )
+
+
+try:
+    import requests
+except ModuleNotFoundError:
+    sys.stderr.write(_missing_dependency_message("requests"))
+    raise SystemExit(1)
+
+try:
+    from bs4 import BeautifulSoup
+except ModuleNotFoundError:
+    sys.stderr.write(_missing_dependency_message("bs4 (beautifulsoup4)"))
+    raise SystemExit(1)
 
 HN_NEWS_URL = "https://news.ycombinator.com/news"
 

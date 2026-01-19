@@ -227,6 +227,7 @@ if ($minVotes > 5000) {
 $backend = run_python_backend($days, $minVotes, 5);
 $backendError = null;
 $backendErrorDetails = null;
+$backendHint = null;
 
 if (isset($backend['ok']) && $backend['ok'] === true && isset($backend['data']) && is_array($backend['data'])) {
     $payload = $backend['data'];
@@ -239,6 +240,18 @@ if (isset($backend['ok']) && $backend['ok'] === true && isset($backend['data']) 
     $generatedAt = gmdate('Y-m-d H:i:s');
     $backendError = isset($backend['error']) ? (string) $backend['error'] : 'Unknown backend error';
     $backendErrorDetails = isset($backend['stderr']) ? (string) $backend['stderr'] : null;
+
+    $details = strtolower((string) ($backendErrorDetails ?? ''));
+    if (
+        str_contains($details, "no module named 'bs4'")
+        || str_contains($details, 'no module named bs4')
+        || str_contains($details, "no module named 'requests'")
+        || str_contains($details, 'module not found')
+        || str_contains($details, 'modulenotfounderror')
+    ) {
+        $backendHint = "Hint: install Python deps with: python3 -m pip install -r requirements.txt (or --user). "
+            . "If Apache/PHP uses a different Python than your shell, set HN_PYTHON to that Python's full path, then run that same interpreter's pip.";
+    }
 }
 
 $cssPath = __DIR__ . DIRECTORY_SEPARATOR . 'css' . DIRECTORY_SEPARATOR . 'styles.css';
@@ -272,6 +285,10 @@ $cssVer = is_file($cssPath) ? (string) filemtime($cssPath) : (string) time();
                     <?php if ($backendErrorDetails): ?>
                         <br />
                         <small><?= e($backendErrorDetails) ?></small>
+                    <?php endif; ?>
+                    <?php if ($backendHint): ?>
+                        <br />
+                        <small><?= e($backendHint) ?></small>
                     <?php endif; ?>
                 </p>
             <?php endif; ?>
