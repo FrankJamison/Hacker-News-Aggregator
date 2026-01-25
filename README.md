@@ -158,11 +158,27 @@ Common issues:
 python -m pip install -r requirements.txt
 ```
 
+Quick verification (run with the same Python you configured / Apache uses):
+
+```bash
+python -c "import requests; import bs4; print('ok')"
+```
+
 If your host requires a user install:
 
 ```bash
 python -m pip install --user -r requirements.txt
 ```
+
+If you can run Python but installs keep going into the wrong user's site-packages (common with `sudo` or when Apache runs under a different user), use a project-local install instead:
+
+```bash
+python3 -m pip install --target pydeps -r requirements.txt
+```
+
+The PHP runner automatically adds `pydeps/` to `PYTHONPATH` when it exists.
+
+If you still see missing-module errors, it almost always means Apache/PHP is running a different Python than your shell. Set `HN_PYTHON` to an absolute interpreter path and install deps using that exact interpreter.
 
 ## What I’d improve next
 

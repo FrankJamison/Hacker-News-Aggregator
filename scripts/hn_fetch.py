@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -16,14 +17,20 @@ from typing import Any, Optional
 
 
 def _missing_dependency_message(module: str) -> str:
+    project_root = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), os.pardir))
+    req_path = os.path.join(project_root, "requirements.txt")
+    py = sys.executable or "python3"
     return (
         "Backend dependency missing: "
         + module
         + "\n"
+        + f"Python interpreter: {py}\n"
+        + f"Requirements file: {req_path}\n"
         + "Install Python deps for this project (using the SAME python that runs the script):\n"
-        + "  python3 -m pip install -r requirements.txt\n"
+        + f"  {py} -m pip install -r \"{req_path}\"\n"
         + "If you are on shared hosting and need a user install, try:\n"
-        + "  python3 -m pip install --user -r requirements.txt\n"
+        + f"  {py} -m pip install --user -r \"{req_path}\"\n"
         + "If PHP runs a different Python than your SSH shell, set HN_PYTHON (in Apache/PHP env) to the full path of the Python you want,\n"
         + "then install deps using that exact interpreter (example):\n"
         + "  /usr/bin/python3 -m pip install --user -r requirements.txt\n"
