@@ -1,188 +1,192 @@
-# 2026 Hacker News Project
+# Hacker News Aggregator
 
-Hi — I built this project as a compact, real-world web app that showcases two things recruiters and engineers care about:
+Live preview: https://hackernews.fcjamison.com/
 
-1) **A clean user experience** (fast, readable, responsive UI)
-2) **Pragmatic engineering** (safe templating, resilient backend execution, predictable deploy story)
+A compact, developer-friendly web app that aggregates Hacker News stories.
 
-It’s a PHP page that renders a filtered list of Hacker News stories, backed by a Python script that fetches and parses HN HTML, then returns JSON to PHP.
+- PHP renders the page and runs a backend subprocess.
+- Python fetches/parses Hacker News HTML and emits JSON to stdout.
 
-## Why I built it
+This repo is intentionally small and framework-light: it’s designed to be easy to read, easy to deploy on a basic PHP host, and easy to debug when “it works locally but not under Apache”.
 
-- I wanted a portfolio piece that demonstrates **cross-language integration** (PHP calling Python), not just “CRUD + framework.”
-- I focused on practical production issues: **PATH differences under Apache**, dependency install messaging, correct output encoding, and safe escaping.
+## Features
 
-## What it does
-
-- Fetches stories from Hacker News (up to 5 pages by default).
-- Filters by:
-  - **Days back** (`days`, default 7; clamped to 1..30)
-  - **Minimum votes** (`min_votes`, default 250; clamped to 0..5000)
-- Sorts results by vote count (descending).
-- Renders a clean, “app-like” list with a polished dark theme.
+- Fetches HN stories (first 5 pages by default).
+- Filters:
+  - `days` (default `7`, clamped to `1..30`)
+  - `min_votes` (default `250`, clamped to `0..5000`)
+- Sorts by votes (descending).
+- Responsive, dark UI.
 
 Example URLs:
 
-- Default: `http://2026hackernewsproject.localhost/`
-- Last 3 days, 500+ votes: `http://2026hackernewsproject.localhost/?days=3&min_votes=500`
+- Default: `/`
+- Last 3 days, 500+ votes: `/?days=3&min_votes=500`
 
-## Tech stack
+## Architecture
 
-- **PHP 8+**: server-rendered HTML + process execution (`proc_open`) + strict output escaping
-- **Python 3**: HTTP fetch + parsing + filtering
-- **requests** + **beautifulsoup4**: HTTP and HTML parsing
-- **Vanilla CSS**: modern, responsive UI built with CSS variables
+Request/data flow:
 
-Dependencies are tracked in `requirements.txt`:
+1. Browser requests `/` (optionally with query params).
+2. [index.php](index.php) clamps/validates input and runs the Python backend via `proc_open()`.
+3. [scripts/hn_fetch.py](scripts/hn_fetch.py) downloads `https://news.ycombinator.com/news?p=1..N`, parses it with BeautifulSoup, filters, sorts, then prints UTF-8 JSON.
+4. PHP decodes JSON and server-renders the list.
 
-```bash
-python -m pip install -r requirements.txt
-```
+### Backend JSON shape
 
-## Architecture (data flow)
-
-There are two runtime pieces:
-
-- Frontend: `index.php`
-- Backend script: `scripts/hn_fetch.py`
-
-Request flow:
-
-1) Browser requests `/` (optionally with `?days=…&min_votes=…`).
-2) `index.php` validates/clamps input and starts a Python subprocess.
-3) `scripts/hn_fetch.py` fetches and parses HTML from `https://news.ycombinator.com/news?p=1..N`.
-4) Python prints UTF-8 JSON to stdout.
-5) PHP decodes JSON and renders the story list.
-
-This intentionally keeps the PHP surface area small and makes the backend script independently runnable (useful for debugging and future API work).
-
-## Design + UI decisions
-
-I designed the UI to feel like a lightweight “reader” app:
-
-- **Design system via CSS variables** (`:root`) so the theme is coherent and easy to adjust.
-- **Readable typography + spacing** for scanning headlines quickly.
-- **Accessible focus states** (`:focus-visible` ring) so keyboard users aren’t second-class.
-- **Reduced motion support** via `@media (prefers-reduced-motion: reduce)`.
-- **Responsive layout**: cards scale cleanly from mobile to desktop.
-
-Styling lives in `css/styles.css`.
-
-## Engineering decisions (what I did on purpose)
-
-### Safe server rendering
-
-- All user and dynamic output is escaped through a dedicated helper (`e()` wraps `htmlspecialchars`).
-- Links open in a new tab with `rel="noreferrer"`.
-
-### Resilient Python execution from PHP
-
-Real deployments frequently fail because the Apache service user doesn’t have the same PATH as your interactive shell. I handled that explicitly:
-
-- PHP prefers `HN_PYTHON` if set (via server env), otherwise tries a candidate list (`py -3`, `python`, `python3`, and common absolute paths).
-- Uses `proc_open()` **array argv form** so Windows paths with spaces work reliably.
-- Captures stdout/stderr and returns helpful error messages to the page (plus install hints when deps are missing).
-
-### Predictable backend output
-
-- Python emits **UTF-8 bytes** (`sys.stdout.buffer.write(...)`) to avoid Windows/Apache encoding issues that can break `json_decode`.
-- Backend prints a stable JSON schema:
+The Python script prints a single JSON object like:
 
 ```json
 {
-  "generated_at_utc": "YYYY-MM-DD HH:MM:SS",
+  "generated_at_utc": "2026-02-21 17:04:11",
   "days": 7,
   "min_votes": 250,
   "stories": [
-    { "title": "…", "link": "…", "votes": 1234, "age_text": "3 hours ago" }
+    {
+      "title": "Some title",
+      "link": "https://example.com",
+      "votes": 1234,
+      "age_text": "3 hours ago"
+    }
   ]
 }
 ```
 
-### Performance guardrails
+## Tech stack
 
-- Limits the number of pages fetched (`--max-pages`, default 5).
-- Stops early when it detects pages no longer contain stories inside the cutoff window.
+- PHP 8+
+- Python 3
+- Python deps in [requirements.txt](requirements.txt): `requests`, `beautifulsoup4`
+- UI styling in [css/styles.css](css/styles.css)
 
-### Caching strategy
+## Quick start
 
-- I intentionally send **no-cache** headers in PHP so refreshes always fetch fresh results.
-- The CSS link gets a cache-busting version string based on file modification time.
-
-## Local setup (Windows + XAMPP)
-
-### 1) Install Python dependencies
-
-From the project root:
+1. Install Python dependencies
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-### 2) Ensure Apache can find Python
+2. Run the PHP app (dev server)
 
-If Apache/PHP can’t find your Python, set `HN_PYTHON` to the full interpreter path.
+```bash
+php -S 127.0.0.1:8080
+```
 
-Example (XAMPP VirtualHost / Apache config):
+Open http://127.0.0.1:8080/
+
+If you’re running via an Apache VirtualHost instead, open:
+
+http://hackernewsaggregator.localhost/
+
+## Local development (recommended setup)
+
+### Prerequisites
+
+- PHP 8+ (Apache+PHP or PHP built-in server)
+- Python 3 + pip
+
+### Use a virtual environment (optional but recommended)
+
+```bash
+python -m venv .venv
+
+# Windows (PowerShell)
+.\.venv\Scripts\Activate.ps1
+
+# macOS/Linux
+source .venv/bin/activate
+
+python -m pip install -r requirements.txt
+```
+
+### Run the backend directly (debugging)
+
+This isolates Python issues from PHP/web server issues:
+
+```bash
+python scripts/hn_fetch.py --days 3 --min-votes 500 --max-pages 5
+```
+
+If JSON prints to stdout, the backend is functioning.
+
+## Configuration
+
+### Query parameters
+
+- `days`: integer, clamped to `1..30`
+- `min_votes`: integer, clamped to `0..5000`
+
+### Python interpreter selection (`HN_PYTHON`)
+
+When running under Apache/XAMPP, PHP often does not inherit your interactive shell PATH.
+If the page shows a backend error indicating Python cannot be found, set `HN_PYTHON` in the web server environment to an absolute interpreter path.
+
+Apache example:
 
 ```apache
 SetEnv HN_PYTHON "C:/Path/To/python.exe"
 ```
 
-Restart Apache after changing env vars.
+Restart Apache after changes.
 
-### 3) Serve the project
+How [index.php](index.php) selects Python:
 
-Point an Apache VirtualHost to this folder and browse:
+- If `HN_PYTHON` is set, only that interpreter is used.
+- Otherwise it tries candidates such as `py -3`, `py`, `python`, `python3`, and common absolute Windows install paths.
 
-`http://2026hackernewsproject.localhost/`
+### Max pages
 
-Note: `.localhost` typically resolves to `127.0.0.1` without editing your hosts file.
+- The Python script supports `--max-pages` (clamped to `1..20`).
+- The PHP page currently calls the backend with `maxPages = 5` (hard-coded in [index.php](index.php)).
 
-## Production notes
+## Deployment notes
 
-- This project does not require a virtualenv, but **you must install Python packages into the exact Python interpreter Apache will run**.
-- On Linux, `HN_PYTHON=/usr/bin/python3` is a common, reliable option.
-- On shared hosting, `proc_open()` or Python package installs may be restricted; VPS is the most reliable deployment path.
+### The one rule that avoids 90% of deployment bugs
+
+Install Python packages into the _same Python interpreter_ that the web server process uses.
+
+Practical checklist:
+
+- Set `HN_PYTHON` to a known absolute interpreter path.
+- Install deps using that same interpreter:
+
+```bash
+C:\Path\To\python.exe -m pip install -r requirements.txt
+```
+
+### Hosting considerations
+
+- Some shared hosts disable `proc_open()` or block subprocess execution entirely.
+- If subprocesses are blocked, you’ll need a different deployment approach (e.g., run the Python logic as a separate service and call it over HTTP).
 
 ## Troubleshooting
 
-If the UI shows a backend error, the page prints stderr details to speed up diagnosis.
+When the backend fails, the page prints the Python stderr output (and the command used) to help you diagnose quickly.
 
-Common issues:
+Common problems:
 
-- **Interpreter not found** (exit code 127 / 9009): set `HN_PYTHON` to an absolute Python path.
-- **Missing Python deps** (`No module named requests` or `bs4`):
+- Interpreter not found (Windows often exit code `9009`, Linux often `127`): set `HN_PYTHON`.
+- Missing deps (`No module named requests` / `bs4`):
 
 ```bash
 python -m pip install -r requirements.txt
+python -c "import requests, bs4; print('ok')"
 ```
 
-Quick verification (run with the same Python you configured / Apache uses):
+If your Apache/PHP is using a different interpreter than your shell, run the install with the exact `HN_PYTHON` path.
 
-```bash
-python -c "import requests; import bs4; print('ok')"
-```
+## Repo layout
 
-If your host requires a user install:
+- [index.php](index.php): input clamping, subprocess execution, JSON decode, HTML rendering
+- [scripts/hn_fetch.py](scripts/hn_fetch.py): scraping + parsing + filtering + JSON output
+- [css/styles.css](css/styles.css): UI styles
+- [scripts/app.py](scripts/app.py): experimental Flask stub (not used by the PHP app)
 
-```bash
-python -m pip install --user -r requirements.txt
-```
+## Security & reliability notes
 
-If you can run Python but installs keep going into the wrong user's site-packages (common with `sudo` or when Apache runs under a different user), use a project-local install instead:
-
-```bash
-python3 -m pip install --target pydeps -r requirements.txt
-```
-
-The PHP runner automatically adds `pydeps/` to `PYTHONPATH` when it exists.
-
-If you still see missing-module errors, it almost always means Apache/PHP is running a different Python than your shell. Set `HN_PYTHON` to an absolute interpreter path and install deps using that exact interpreter.
-
-## What I’d improve next
-
-- Add a lightweight server-side cache (e.g., cache JSON for 2–5 minutes) to reduce repeated scraping.
-- Add automated tests for parsing edge cases (HN markup changes).
-- Add an optional JSON endpoint (same payload, but `Content-Type: application/json`) for reuse.
-- Add more filters (domain allow/deny list, title keyword search) while keeping validation strict.
+- Output escaping: PHP renders dynamic values via `htmlspecialchars`.
+- Subprocess execution: uses `proc_open()` with argv-array (no shell), which reduces quoting issues and injection risk.
+- Encoding: Python writes UTF-8 bytes to stdout to avoid Windows codepage issues that can break `json_decode()`.
+- Caching: PHP sends `no-store`/`no-cache` headers so refreshes always refetch; CSS is cache-busted using file mtime.
+- HN fetching: the Python script retries the first page with a second User-Agent if it hits `403`/`429`.
